@@ -10,7 +10,6 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.2
 	github.com/Azure/azure-storage-blob-go v0.9.0
 	github.com/Masterminds/sprig/v3 v3.2.2
-	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535
 	github.com/auth0/go-jwt-middleware v1.0.1
 	github.com/aws/aws-sdk-go v1.31.13
 	github.com/blang/semver v3.5.1+incompatible
@@ -33,8 +32,9 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.0.0
 	github.com/golang/gddo v0.0.0-20190904175337-72a348e765d2
 	github.com/golang/mock v1.4.4
+	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/go-replayers/httpreplay v0.1.0
-	github.com/google/uuid v1.1.1
+	github.com/google/uuid v1.1.2
 	github.com/gorilla/websocket v1.4.2
 	github.com/imdario/mergo v0.3.11
 	github.com/julienschmidt/httprouter v1.2.0
@@ -61,6 +61,7 @@ require (
 	github.com/rogpeppe/go-internal v1.6.2 // indirect
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.8.0
+	github.com/spf13/afero v1.3.4 // indirect
 	github.com/spf13/cobra v1.1.1
 	github.com/sqs/goreturns v0.0.0-20181028201513-538ac6014518
 	github.com/square/go-jose v2.3.1+incompatible
@@ -72,11 +73,15 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	gocloud.dev v0.20.0
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/net v0.0.0-20210913180222-943fd674d43e // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
+	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.7
 	google.golang.org/api v0.30.0
+	google.golang.org/genproto v0.0.0-20210909211513-a8c4777a87af // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
 
 go 1.16
