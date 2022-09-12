@@ -1,253 +1,214 @@
+/*
+ * Copyright © 2017-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * @author       Aeneas Rekkas <aeneas+oss@aeneas.io>
+ * @copyright  2017-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
+ * @license  	   Apache-2.0
+ */
+
 package authz_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
-
-	"github.com/ory/x/logrusx"
 
 	"github.com/ory/viper"
 
 	"github.com/ory/oathkeeper/driver/configuration"
+	"github.com/ory/oathkeeper/internal"
+	"github.com/ory/oathkeeper/x"
+
 	"github.com/ory/oathkeeper/pipeline/authn"
 	. "github.com/ory/oathkeeper/pipeline/authz"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ory/oathkeeper/rule"
 )
 
-func TestAuthorizerSpicedbAuthorize(t *testing.T) {
-	tests := []struct {
-		name               string
-		setup              func(t *testing.T) *httptest.Server
-		session            *authn.AuthenticationSession
-		sessionHeaderMatch *http.Header
-		body               string
-		config             json.RawMessage
-		wantErr            bool
+func TestAuthorizerSpiceDBWarden(t *testing.T) {
+	conf := internal.NewConfigurationWithDefaults()
+	reg := internal.NewRegistry(conf)
+
+	rule := &rule.Rule{ID: "TestAuthorizer"}
+
+	a, err := reg.PipelineAuthorizer("keto_engine_acp_ory")
+	require.NoError(t, err)
+	assert.Equal(t, "keto_engine_acp_ory", a.GetID())
+
+	for k, tc := range []struct {
+		setup     func(t *testing.T) *httptest.Server
+		r         *http.Request
+		session   *authn.AuthenticationSession
+		config    json.RawMessage
+		expectErr bool
 	}{
 		{
-			name:    "invalid configuration",
-			session: &authn.AuthenticationSession{},
-			config:  json.RawMessage(`{}`),
-			wantErr: true,
+			expectErr: true,
 		},
 		{
-			name:    "unresolvable host",
-			session: &authn.AuthenticationSession{},
-			config:  json.RawMessage(`{"remote":"http://unresolvable-host/path",}`),
-			wantErr: true,
+			config:    []byte(`{ "required_action": "action", "required_resource": "resource" }`),
+			r:         &http.Request{URL: &url.URL{}},
+			session:   new(authn.AuthenticationSession),
+			expectErr: true,
 		},
 		{
-			name:    "invalid json",
-			session: &authn.AuthenticationSession{},
-			config:  json.RawMessage(`{"remote":"http://host/path","headers":"{"}`),
-			wantErr: true,
-		},
-		{
-			name: "forbidden",
+			config: []byte(`{ "required_action": "action", "required_resource": "resource", "flavor": "regex" }`),
+			r:      &http.Request{URL: &url.URL{}},
 			setup: func(t *testing.T) *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusForbidden)
 				}))
 			},
-			session: &authn.AuthenticationSession{},
-			config:  json.RawMessage(`{}`),
-			wantErr: true,
+			session:   new(authn.AuthenticationSession),
+			expectErr: true,
 		},
 		{
-			name: "unexpected status code",
-			setup: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusBadRequest)
-				}))
-			},
-			session: &authn.AuthenticationSession{},
-			config:  json.RawMessage(`{}`),
-			wantErr: true,
-		},
-		{
-			name: "nobody",
+			config: []byte(`{ "required_action": "action", "required_resource": "resource", "flavor": "exact" }`),
+			r:      &http.Request{URL: &url.URL{}},
 			setup: func(t *testing.T) *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					assert.Contains(t, r.Header, "Content-Type")
-					assert.Contains(t, r.Header["Content-Type"], "text/plain")
-					body, err := ioutil.ReadAll(r.Body)
-					require.NoError(t, err)
-					assert.Equal(t, "", string(body))
-					w.WriteHeader(http.StatusOK)
+					assert.Contains(t, r.Header["Content-Type"], "application/json")
+					assert.Contains(t, r.URL.Path, "exact")
+					w.Write([]byte(`{"allowed":false}`))
 				}))
 			},
-			body:   "",
-			config: json.RawMessage(`{}`),
+			session:   new(authn.AuthenticationSession),
+			expectErr: true,
 		},
 		{
-			name: "ok",
+			config: []byte(`{ "required_action": "action:{{ printIndex .MatchContext.RegexpCaptureGroups (sub 1 1 | int)}}:{{ index .MatchContext.RegexpCaptureGroups (sub 2 1 | int)}}", "required_resource": "resource:{{ index .MatchContext.RegexpCaptureGroups 0}}:{{ index .MatchContext.RegexpCaptureGroups 1}}" }`),
+			r:      &http.Request{URL: x.ParseURLOrPanic("https://localhost/api/users/1234/abcde")},
 			setup: func(t *testing.T) *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					assert.Contains(t, r.Header, "Content-Type")
-					assert.Contains(t, r.Header["Content-Type"], "text/plain")
-					assert.Nil(t, r.Header["Authorization"])
-					body, err := ioutil.ReadAll(r.Body)
-					require.NoError(t, err)
-					assert.Equal(t, "testtest", string(body))
-					w.WriteHeader(http.StatusOK)
-				}))
-			},
-			body:   "testtest",
-			config: json.RawMessage(`{}`),
-		},
-		{
-			name: "ok with large body",
-			setup: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					body, err := ioutil.ReadAll(r.Body)
-					require.NoError(t, err)
-					assert.True(t, strings.Repeat("1", 1024*1024) == string(body))
-					w.WriteHeader(http.StatusOK)
-				}))
-			},
-			body:   strings.Repeat("1", 1024*1024),
-			config: json.RawMessage(`{}`),
-		},
-		{
-			name: "ok with allowed headers",
-			setup: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("X-Foo", "bar")
-					w.WriteHeader(http.StatusOK)
-				}))
-			},
-			session:            new(authn.AuthenticationSession),
-			sessionHeaderMatch: &http.Header{"X-Foo": []string{"bar"}},
-			config:             json.RawMessage(`{"forward_response_headers_to_upstream":["X-Foo"]}`),
-		},
-		{
-			name: "ok with not allowed headers",
-			setup: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("X-Bar", "foo")
-					w.WriteHeader(http.StatusOK)
-				}))
-			},
-			session:            new(authn.AuthenticationSession),
-			sessionHeaderMatch: &http.Header{"X-Foo": []string{""}},
-			config:             json.RawMessage(`{"forward_response_headers_to_upstream":["X-Foo"]}`),
-		},
-		{
-			name: "authentication session",
-			setup: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					assert.Contains(t, r.Header, "Subject")
-					assert.Contains(t, r.Header["Subject"], "alice")
-					w.WriteHeader(http.StatusOK)
+					var ki AuthorizerSpiceDBRequestBody
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&ki))
+					assert.EqualValues(t, AuthorizerSpiceDBRequestBody{
+						Action:   "action:1234:abcde",
+						Resource: "resource:1234:abcde",
+						Context:  map[string]interface{}{},
+						Subject:  "peter",
+					}, ki)
+					assert.Contains(t, r.URL.Path, "regex")
+					w.Write([]byte(`{"allowed":true}`))
 				}))
 			},
 			session: &authn.AuthenticationSession{
-				Subject: "alice",
-				Extra:   map[string]interface{}{"foo": "bar"},
+				Subject: "peter",
 				MatchContext: authn.MatchContext{
-					RegexpCaptureGroups: []string{"baz"},
+					RegexpCaptureGroups: []string{"1234", "abcde"},
 				},
 			},
-			config: json.RawMessage(`{"headers":{"Subject": "{{ .Subject }}"}}`),
+			expectErr: false,
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setup != nil {
-				server := tt.setup(t)
-				defer server.Close()
-				tt.config, _ = sjson.SetBytes(tt.config, "remote", server.URL)
+		{
+			config: []byte(`{ "required_action": "action:{{ index .MatchContext.RegexpCaptureGroups 0}}:{{ index .MatchContext.RegexpCaptureGroups 1}}", "required_resource": "resource:{{ index .MatchContext.RegexpCaptureGroups 0}}:{{ index .MatchContext.RegexpCaptureGroups 1}}", "subject": "{{ .Extra.name }}" }`),
+			r:      &http.Request{URL: x.ParseURLOrPanic("https://localhost/api/users/1234/abcde")},
+			setup: func(t *testing.T) *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var ki AuthorizerSpiceDBRequestBody
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&ki))
+					assert.EqualValues(t, AuthorizerSpiceDBRequestBody{
+						Action:   "action:1234:abcde",
+						Resource: "resource:1234:abcde",
+						Context:  map[string]interface{}{},
+						Subject:  "peter",
+					}, ki)
+					assert.Contains(t, r.URL.Path, "regex")
+					w.Write([]byte(`{"allowed":true}`))
+				}))
+			},
+			session: &authn.AuthenticationSession{
+				Extra: map[string]interface{}{"name": "peter"},
+				MatchContext: authn.MatchContext{
+					RegexpCaptureGroups: []string{"1234", "abcde"},
+				}},
+			expectErr: false,
+		},
+		{
+			config: []byte(`{ "required_action": "action:{{ index .MatchContext.RegexpCaptureGroups 0 }}:{{ .Extra.name }}", "required_resource": "resource:{{ index .MatchContext.RegexpCaptureGroups 0}}:{{ .Extra.apiVersion }}", "subject": "{{ .Extra.name }}" }`),
+			r:      &http.Request{URL: x.ParseURLOrPanic("https://localhost/api/users/1234/abcde?limit=10")},
+			setup: func(t *testing.T) *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var ki AuthorizerSpiceDBRequestBody
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&ki))
+					assert.EqualValues(t, AuthorizerSpiceDBRequestBody{
+						Action:   "action:1234:peter",
+						Resource: "resource:1234:1.0",
+						Context:  map[string]interface{}{},
+						Subject:  "peter",
+					}, ki)
+					assert.Contains(t, r.URL.Path, "regex")
+					w.Write([]byte(`{"allowed":true}`))
+				}))
+			},
+			session: &authn.AuthenticationSession{
+				Extra: map[string]interface{}{
+					"name":       "peter",
+					"apiVersion": "1.0"},
+				MatchContext: authn.MatchContext{RegexpCaptureGroups: []string{"1234"}},
+			},
+			expectErr: false,
+		},
+	} {
+		t.Run(fmt.Sprintf("case=%d", k), func(t *testing.T) {
+			c := gomock.NewController(t)
+			defer c.Finish()
+
+			baseURL := "http://73fa403f-7e9c-48ef-870f-d21b2c34fc80c6cb6404-bb36-4e70-8b90-45155657fda6/"
+			if tc.setup != nil {
+				ts := tc.setup(t)
+				defer ts.Close()
+				baseURL = ts.URL
 			}
 
-			p := configuration.NewViperProvider(logrusx.New("", ""))
-			a := NewAuthorizerSpicedb(p)
-			r := &http.Request{
-				Header: map[string][]string{
-					"Content-Type": {"text/plain"},
-					"User-Agent":   {"Fancy Browser 5.1"},
-				},
-			}
-			if tt.body != "" {
-				r.Body = ioutil.NopCloser(strings.NewReader(tt.body))
-			}
-			if err := a.Authorize(r, tt.session, tt.config, &rule.Rule{}); (err != nil) != tt.wantErr {
-				t.Errorf("Authorize() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			a.(*AuthorizerSpiceDB).WithContextCreator(func(r *http.Request) map[string]interface{} {
+				return map[string]interface{}{}
+			})
 
-			if tt.sessionHeaderMatch != nil {
-				assert.Equal(t, tt.sessionHeaderMatch, &tt.session.Header)
+			tc.config, _ = sjson.SetBytes(tc.config, "base_url", baseURL)
+			err := a.Authorize(tc.r, tc.session, tc.config, rule)
+			if tc.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
-}
 
-func TestAuthorizerSpicedbValidate(t *testing.T) {
-	tests := []struct {
-		name    string
-		enabled bool
-		config  json.RawMessage
-		wantErr bool
-	}{
-		{
-			name:    "disabled",
-			config:  json.RawMessage(`{}`),
-			wantErr: true,
-		},
-		{
-			name:    "empty configuration",
-			enabled: true,
-			config:  json.RawMessage(`{}`),
-			wantErr: true,
-		},
-		{
-			name:    "missing remote",
-			enabled: true,
-			config:  json.RawMessage(`{}`),
-			wantErr: true,
-		},
-		{
-			name:    "invalid url",
-			enabled: true,
-			config:  json.RawMessage(`{"remote":"invalid-url",}`),
-			wantErr: true,
-		},
-		{
-			name:    "valid configuration",
-			enabled: true,
-			config:  json.RawMessage(`{"remote":"http://host/path"}`),
-		},
-		{
-			name:    "valid configuration with partial retry 1",
-			enabled: true,
-			config:  json.RawMessage(`{"remote":"http://host/path","retry":{"max_delay":"100ms"}}`),
-		},
-		{
-			name:    "valid configuration with partial retry 2",
-			enabled: true,
-			config:  json.RawMessage(`{"remote":"http://host/path","retry":{"give_up_after":"3s"}}`),
-		},
-		{
-			name:    "valid configuration with retry",
-			enabled: true,
-			config:  json.RawMessage(`{"remote":"http://host/path","retry":{"give_up_after":"3s", "max_delay":"100ms"}}`),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := configuration.NewViperProvider(logrusx.New("", ""))
-			a := NewAuthorizerSpicedb(p)
-			viper.Set(configuration.ViperKeyAuthorizerRemoteIsEnabled, tt.enabled)
-			if err := a.Validate(tt.config); (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+	t.Run("method=validate", func(t *testing.T) {
+		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, false)
+		require.Error(t, a.Validate(json.RawMessage(`{"base_url":"","required_action":"foo","required_resource":"bar"}`)))
+
+		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, false)
+		require.Error(t, a.Validate(json.RawMessage(`{"base_url":"http://foo/bar","required_action":"foo","required_resource":"bar"}`)))
+
+		viper.Reset()
+		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, true)
+		require.Error(t, a.Validate(json.RawMessage(`{"base_url":"","required_action":"foo","required_resource":"bar"}`)))
+
+		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, true)
+		require.NoError(t, a.Validate(json.RawMessage(`{"base_url":"http://foo/bar","required_action":"foo","required_resource":"bar"}`)))
+	})
 }
