@@ -3,17 +3,15 @@ package configuration
 import (
 	"encoding/json"
 	"net/url"
+	"testing"
 	"time"
 
-	"github.com/gobuffalo/packr/v2"
-
 	"github.com/ory/fosite"
+	"github.com/ory/x/configx"
 	"github.com/ory/x/tracing"
 
 	"github.com/rs/cors"
 )
-
-var schemas = packr.New("schemas", "../../.schema")
 
 const (
 	ForbiddenStrategyErrorType = "forbidden"
@@ -25,13 +23,23 @@ type MatchingStrategy string
 
 // Possible matching strategies.
 const (
-	Regexp MatchingStrategy = "regexp"
-	Glob   MatchingStrategy = "glob"
+	Regexp                  MatchingStrategy = "regexp"
+	Glob                    MatchingStrategy = "glob"
+	DefaultMatchingStrategy                  = Regexp
 )
 
 type Provider interface {
+	Get(k Key) interface{}
+	String(k Key) string
+	AllSettings() map[string]interface{}
+	Source() *configx.Provider
+
+	AddWatcher(cb callback) SubscriptionID
+	RemoveWatcher(id SubscriptionID)
+
 	CORSEnabled(iface string) bool
 	CORSOptions(iface string) cors.Options
+	CORS(iface string) (cors.Options, bool)
 
 	ProviderAuthenticators
 	ProviderErrorHandlers
@@ -54,6 +62,8 @@ type Provider interface {
 
 	PrometheusServeAddress() string
 	PrometheusMetricsPath() string
+	PrometheusMetricsNamePrefix() string
+	PrometheusHideRequestPaths() bool
 	PrometheusCollapseRequestPaths() bool
 
 	ToScopeStrategy(value string, key string) fosite.ScopeStrategy
@@ -64,6 +74,10 @@ type Provider interface {
 	TracingProvider() string
 	TracingJaegerConfig() *tracing.JaegerConfig
 	TracingZipkinConfig() *tracing.ZipkinConfig
+
+	TLSConfig(daemon string) *TLSConfig
+
+	SetForTest(t testing.TB, key string, value interface{})
 }
 
 type ProviderErrorHandlers interface {

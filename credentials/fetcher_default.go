@@ -68,9 +68,9 @@ type FetcherDefault struct {
 
 // NewFetcherDefault returns a new JWKS Fetcher with:
 //
-// - cancelAfter: If reached, the fetcher will stop waiting for responses and return an error.
-// - waitForResponse: While the fetcher might stop waiting for responses, we will give the server more time to respond
-//		and add the keys to the registry unless waitForResponse is reached in which case we'll terminate the request.
+//   - cancelAfter: If reached, the fetcher will stop waiting for responses and return an error.
+//   - waitForResponse: While the fetcher might stop waiting for responses, we will give the server more time to respond
+//     and add the keys to the registry unless waitForResponse is reached in which case we'll terminate the request.
 func NewFetcherDefault(l *logrusx.Logger, cancelAfter time.Duration, ttl time.Duration) *FetcherDefault {
 	return &FetcherDefault{
 		cancelAfter: cancelAfter,
@@ -78,8 +78,10 @@ func NewFetcherDefault(l *logrusx.Logger, cancelAfter time.Duration, ttl time.Du
 		ttl:         ttl,
 		keys:        make(map[string]jose.JSONWebKeySet),
 		fetchedAt:   make(map[string]time.Time),
-		client:      httpx.NewResilientClientLatencyToleranceHigh(nil),
-		mux:         cloudstorage.NewURLMux(),
+		client: httpx.NewResilientClient(
+			httpx.ResilientClientWithConnectionTimeout(15 * time.Second),
+		).StandardClient(),
+		mux: cloudstorage.NewURLMux(),
 	}
 }
 
@@ -265,9 +267,7 @@ func (s *FetcherDefault) resolve(wg *sync.WaitGroup, errs chan error, location u
 		defer f.Close()
 
 		reader = f
-	case "https":
-		fallthrough
-	case "http":
+	case "http", "https":
 		res, err := s.client.Get(location.String())
 		if err != nil {
 			errs <- errors.WithStack(herodot.

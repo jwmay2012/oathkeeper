@@ -83,7 +83,9 @@ serve:
     port: 9000
     host: localhost
     metrics_path: /metrics
+    hide_request_paths: false
     collapse_request_paths: true
+    metric_name_prefix: ory_oathkeeper_
 
 # Configures Access Rules
 access_rules:
@@ -115,8 +117,7 @@ errors:
       config:
         verbose: true
         when:
-          -
-            error:
+          - error:
               - unauthorized
               - forbidden
               - internal_server_error
@@ -137,7 +138,6 @@ authenticators:
     enabled: true
 
     config:
-
       # Sets the anonymous username. Defaults to "anonymous". Common names include "guest", "anon", "anonymous", "unknown".
       subject: guest
 
@@ -147,7 +147,6 @@ authenticators:
     enabled: true
 
     config:
-
       # Sets the origin to proxy requests to. If the response is a 200 with body `{ "subject": "...", "extra": {} }`
       # The request will pass the subject through successfully, otherwise it will be marked as unauthorized
       check_session_url: https://session-store-host
@@ -163,7 +162,6 @@ authenticators:
     enabled: true
 
     config:
-
       # REQUIRED IF ENABLED - The URL where ORY Oathkeeper can retrieve JSON Web Keys from for validating the JSON Web
       # Token. Usually something like "https://my-keys.com/.well-known/jwks.json". The response of that endpoint must
       # return a JSON Web Key Set (JWKS).
@@ -187,7 +185,6 @@ authenticators:
     enabled: true
 
     config:
-
       # REQUIRED IF ENABLED - The OAuth 2.0 Token Endpoint that will be used to validate the client credentials.
       token_url: https://my-website.com/oauth2/token
 
@@ -197,7 +194,6 @@ authenticators:
     enabled: true
 
     config:
-
       # REQUIRED IF ENABLED - The OAuth 2.0 Token Introspection endpoint.
       introspection_url: https://my-website.com/oauth2/introspection
 
