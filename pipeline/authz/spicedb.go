@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	"net/http"
 	"net/url"
 	"text/template"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/ory/x/httpx"
 
