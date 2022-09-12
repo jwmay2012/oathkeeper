@@ -28,6 +28,7 @@ const (
 	AuthorizerAllowIsEnabled            Key = "authorizers.allow.enabled"
 	AuthorizerDenyIsEnabled             Key = "authorizers.deny.enabled"
 	AuthorizerKetoEngineACPORYIsEnabled Key = "authorizers.keto_engine_acp_ory.enabled"
+	AuthorizerSpiceDBIsEnabled          Key = "authorizers.spice_db.enabled"
 	AuthorizerRemoteIsEnabled           Key = "authorizers.remote.enabled"
 	AuthorizerRemoteJSONIsEnabled       Key = "authorizers.remote_json.enabled"
 )

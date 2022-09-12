@@ -52,9 +52,9 @@ func TestAuthorizerSpiceDBWarden(t *testing.T) {
 
 	rule := &rule.Rule{ID: "TestAuthorizer"}
 
-	a, err := reg.PipelineAuthorizer("keto_engine_acp_ory")
+	a, err := reg.PipelineAuthorizer("spice_db")
 	require.NoError(t, err)
-	assert.Equal(t, "keto_engine_acp_ory", a.GetID())
+	assert.Equal(t, "spice_db", a.GetID())
 
 	for k, tc := range []struct {
 		setup     func(t *testing.T) *httptest.Server
@@ -198,17 +198,17 @@ func TestAuthorizerSpiceDBWarden(t *testing.T) {
 	}
 
 	t.Run("method=validate", func(t *testing.T) {
-		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, false)
+		viper.Set(configuration.AuthorizerSpiceDBIsEnabled, false)
 		require.Error(t, a.Validate(json.RawMessage(`{"base_url":"","required_action":"foo","required_resource":"bar"}`)))
 
-		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, false)
+		viper.Set(configuration.AuthorizerSpiceDBIsEnabled, false)
 		require.Error(t, a.Validate(json.RawMessage(`{"base_url":"http://foo/bar","required_action":"foo","required_resource":"bar"}`)))
 
 		viper.Reset()
-		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, true)
+		viper.Set(configuration.AuthorizerSpiceDBIsEnabled, true)
 		require.Error(t, a.Validate(json.RawMessage(`{"base_url":"","required_action":"foo","required_resource":"bar"}`)))
 
-		viper.Set(configuration.ViperKeyAuthorizerKetoEngineACPORYIsEnabled, true)
+		viper.Set(configuration.AuthorizerSpiceDBIsEnabled, true)
 		require.NoError(t, a.Validate(json.RawMessage(`{"base_url":"http://foo/bar","required_action":"foo","required_resource":"bar"}`)))
 	})
 }
