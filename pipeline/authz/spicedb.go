@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"net/http"
 	"net/url"
 	"text/template"
@@ -48,15 +49,18 @@ func (c *AuthorizerSpiceDBConfiguration) ResourceTemplateID() string {
 type AuthorizerSpiceDB struct {
 	c configuration.Provider
 
-	client         *http.Client
+	client         *retryablehttp.Client
 	contextCreator authorizerSpiceDBWardenContext
 	t              *template.Template
 }
 
 func NewAuthorizerSpiceDB(c configuration.Provider) *AuthorizerSpiceDB {
 	return &AuthorizerSpiceDB{
-		c:      c,
-		client: httpx.NewResilientClientLatencyToleranceSmall(nil),
+		c: c,
+		client: httpx.NewResilientClient(
+			httpx.ResilientClientWithMaxRetryWait(100*time.Millisecond),
+			httpx.ResilientClientWithMaxRetry(5),
+		),
 		contextCreator: func(r *http.Request) map[string]interface{} {
 			return map[string]interface{}{
 				"remoteIpAddress": realip.RealIP(r),
@@ -140,7 +144,12 @@ func (a *AuthorizerSpiceDB) Authorize(r *http.Request, session *authn.Authentica
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := a.client.Do(req.WithContext(r.Context()))
+	retryableReq, err := retryablehttp.FromRequest(req.WithContext(r.Context()))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	res, err := a.client.Do(retryableReq)
 	if err != nil {
 		return errors.WithStack(err)
 	}
