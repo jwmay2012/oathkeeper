@@ -455,6 +455,24 @@ func TestConfigureBackendURL(t *testing.T) {
 		eHost string
 	}{
 		{
+			r:     &http.Request{Host: "localhost", URL: &url.URL{Path: "/api/users/1234/", RawQuery: "q=value", Scheme: "http"}},
+			rl:    &rule.Rule{Upstream: rule.Upstream{URL: "http://localhost:4000/base/", StripPath: "/api"}},
+			eURL:  "http://localhost:4000/base/users/1234/?q=value",
+			eHost: "localhost:4000",
+		},
+		{
+			r:     &http.Request{Host: "localhost", URL: &url.URL{Path: "/public/../admin/secrets/", Scheme: "http"}},
+			rl:    &rule.Rule{Upstream: rule.Upstream{URL: "http://localhost:4000"}},
+			eURL:  "http://localhost:4000/admin/secrets/",
+			eHost: "localhost:4000",
+		},
+		{
+			r:     &http.Request{Host: "localhost", URL: &url.URL{Path: "/", Scheme: "http"}},
+			rl:    &rule.Rule{Upstream: rule.Upstream{URL: "http://localhost:4000/"}},
+			eURL:  "http://localhost:4000/",
+			eHost: "localhost:4000",
+		},
+		{
 			r:     &http.Request{Host: "localhost", URL: &url.URL{Path: "/api/users/1234", Scheme: "http"}},
 			rl:    &rule.Rule{Upstream: rule.Upstream{URL: "http://localhost/"}},
 			eURL:  "http://localhost/api/users/1234",
