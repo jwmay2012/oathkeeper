@@ -178,6 +178,33 @@ func TestRulePathTraversal(t *testing.T) {
 	assert.True(t, matched)
 }
 
+func TestRulePathNormalizationPreservesTrailingSlash(t *testing.T) {
+	for _, tc := range []struct {
+		name, pattern, input, normalized string
+		matches                          bool
+	}{
+		{"trailing slash", "/users/<[0-9]+>/", "/users/123/", "/users/123/", true},
+		{"slash is required", "/users/<[0-9]+>/", "/users/123", "/users/123", false},
+		{"slash remains distinct", "/users/<[0-9]+>", "/users/123/", "/users/123/", false},
+		{"root", "/", "/", "/", true},
+		{"normalized root", "/", "/public/../", "/", true},
+		{"duplicate separator", "/users/<[0-9]+>/", "/users//123/", "/users/123/", true},
+		{"protected traversal", "/admin/<.*>/", "/public/../admin/secrets/", "/admin/secrets/", true},
+		{"deny permissive traversal", "/public/<.*>", "/public/../admin/secrets/", "/admin/secrets/", false},
+		{"encoded traversal", "/admin/<.*>/", "/public/%2e%2e/admin/secrets/", "/admin/secrets/", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Rule{Match: &Match{Methods: []string{"GET"}, URL: "https://localhost" + tc.pattern}}
+			u := mustParse(t, "https://localhost"+tc.input+"?q=value")
+			matched, err := r.IsMatching(configuration.Regexp, "GET", u, ProtocolHTTP)
+			require.NoError(t, err)
+			assert.Equal(t, tc.matches, matched)
+			assert.Equal(t, tc.normalized, u.Path)
+			assert.Equal(t, "q=value", u.RawQuery)
+		})
+	}
+}
+
 func TestRule_UnmarshalJSON(t *testing.T) {
 	var tests = []struct {
 		name     string
