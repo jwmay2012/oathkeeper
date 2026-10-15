@@ -43,6 +43,14 @@ MongoDB and Go extension modules, including their required dependencies, and
 re-enables the image-scanner workflow. Run `govulncheck ./...` and scan each
 built image before release; retain those reports with the test results.
 
+CI stamps the version and commit explicitly and disables automatic VCS version
+inference. The unchanged module path otherwise derives an obsolete v0.x
+pseudo-version from Git history, which scanners mistake for code predating the
+security fixes in the release base. Dependency build information is retained.
+The containerized Kubescape scanner receives a Docker archive of the built image
+because it cannot access the runner's Docker daemon. No advisory exceptions are
+applied.
+
 Run HTTP integration coverage for both decision and proxy modes, including
 trailing slashes, path traversal normalization, authentication and rejection. An
 image build must pass its regression gate before producing a final image.
