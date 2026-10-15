@@ -4,6 +4,10 @@ This fork follows released upstream Oathkeeper tags. The current base is
 `v26.2.0` (`c84dbe07ecbf6f10154f04ec49b137a115155289`). Historical branches and
 published tags are retained unchanged.
 
+GitHub Actions are disabled for this fork. Release verification runs locally:
+build the images, run the tests and vulnerability scans, then validate the
+candidate before publishing it. Workflow files remain as upstream reference.
+
 Use `release/v<upstream-version>-custom.<revision>` branches. Keep fork CI setup
 in the first commit, followed by isolated behavior fixes with their regression
 tests. Feature PRs target that release branch; the default branch does not carry
@@ -39,9 +43,9 @@ do not include whole-repository formatting churn in behavior fixes.
 
 The initial candidate inherited dependency advisories from the upstream release.
 The separate security update upgrades the affected JOSE, OpenTelemetry, gRPC,
-MongoDB and Go extension modules, including their required dependencies, and
-re-enables the image-scanner workflow. Run `govulncheck ./...` and scan each
-built image before release; retain those reports with the test results.
+MongoDB and Go extension modules, including their required dependencies. Run
+`govulncheck ./...` and scan each built image before release; retain those
+reports with the test results.
 
 CI stamps the version and commit explicitly and disables automatic VCS version
 inference. The unchanged module path otherwise derives an obsolete v0.x
@@ -49,7 +53,9 @@ pseudo-version from Git history, which scanners mistake for code predating the
 security fixes in the release base. Dependency build information is retained.
 The containerized Kubescape scanner receives a Docker archive of the built image
 because it cannot access the runner's Docker daemon. No advisory exceptions are
-applied.
+applied. Kubescape reports the module-only advisory for unused OpenPGP code as
+critical; use govulncheck to distinguish module presence from imported or called
+vulnerable code. Hosted workflows remain disabled.
 
 Run HTTP integration coverage for both decision and proxy modes, including
 trailing slashes, path traversal normalization, authentication and rejection. An
