@@ -37,10 +37,11 @@ on this base and is restricted to upstream. Format changed Go files with
 `gofmt`/`goimports` and changed Markdown/YAML with the pinned Prettier version;
 do not include whole-repository formatting churn in behavior fixes.
 
-The automatic image-scanner workflow is also restricted to upstream. Scans of
-the unchanged release dependencies reported high/critical advisories; disabling
-the automatic gate does not resolve those findings or constitute security
-approval. Retain the reports for dependency review before production promotion.
+The initial candidate inherited dependency advisories from the upstream release.
+The separate security update upgrades the affected JOSE, OpenTelemetry, gRPC,
+MongoDB and Go extension modules, including their required dependencies, and
+re-enables the image-scanner workflow. Run `govulncheck ./...` and scan each
+built image before release; retain those reports with the test results.
 
 Run HTTP integration coverage for both decision and proxy modes, including
 trailing slashes, path traversal normalization, authentication and rejection. An
