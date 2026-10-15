@@ -522,6 +522,30 @@ func TestInitializeSession(t *testing.T) {
 			},
 		},
 		{
+			desc:     "Trailing slash with capture and path traversal",
+			url:      "http://localhost/public/../admin/secrets/?param=test",
+			strategy: configuration.Regexp,
+			match:    rule.Match{URL: "http://localhost/admin/<.*>/"},
+			expectContext: authn.MatchContext{
+				RegexpCaptureGroups: []string{"secrets"},
+				URL:                 x.ParseURLOrPanic("http://localhost/admin/secrets/?param=test"),
+				Method:              "GET",
+				Header:              TestHeader,
+			},
+		},
+		{
+			desc:     "Normalized root remains one slash",
+			url:      "http://localhost/public/../?param=test",
+			strategy: configuration.Regexp,
+			match:    rule.Match{URL: "http://localhost/"},
+			expectContext: authn.MatchContext{
+				RegexpCaptureGroups: []string{},
+				URL:                 x.ParseURLOrPanic("http://localhost/?param=test"),
+				Method:              "GET",
+				Header:              TestHeader,
+			},
+		},
+		{
 			desc:     "Rule with Glob matching strategy",
 			url:      "http://localhost/user?param=test",
 			strategy: configuration.Glob,
