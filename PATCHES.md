@@ -1,0 +1,53 @@
+# Release patch series
+
+This fork follows released upstream Oathkeeper tags. The current base is
+`v26.2.0` (`c84dbe07ecbf6f10154f04ec49b137a115155289`). Historical branches and
+published tags are retained unchanged.
+
+Use `release/v<upstream-version>-custom.<revision>` branches. Keep fork CI setup
+in the first commit, followed by isolated behavior fixes with their regression
+tests. Feature PRs target that release branch; the default branch does not carry
+the release patch series. Upstream-only publishing, newsletter, and
+project-board jobs require upstream credentials and are skipped in forks.
+
+Keep each behavior fix independently suitable for upstream submission. Avoid
+deployment-specific configuration, bundled patches, dependency churn, or
+unrelated formatting. Preserve upstream security fixes during rebases.
+
+Before publishing a candidate:
+
+```sh
+go test ./rule ./proxy ./api ./pipeline/...
+go test -race ./rule ./proxy -run '^(TestRulePathNormalizationPreservesTrailingSlash|TestRulePathTraversal|TestConfigureBackendURL|TestInitializeSession)$'
+go vet ./rule ./proxy ./api ./pipeline/...
+```
+
+The full race run also exposes pre-existing upstream watcher/logger and
+authorizer races. Keep those findings separate from the focused regression gate;
+do not describe the entire upstream race suite as passing.
+
+The legacy `go-acc` coverage step can fail the unchanged asynchronous
+introspection-cache hit assertion. Fork CI runs the rule/proxy/API unit tests
+and focused race checks instead; linting and the upstream reload, end-to-end,
+forwarded-header and bearer-token suites remain enabled. Full affected-package
+tests above remain part of local release acceptance.
+
+The upstream repository-wide Format workflow rewrites unrelated vendored source
+on this base and is restricted to upstream. Format changed Go files with
+`gofmt`/`goimports` and changed Markdown/YAML with the pinned Prettier version;
+do not include whole-repository formatting churn in behavior fixes.
+
+The automatic image-scanner workflow is also restricted to upstream. Scans of
+the unchanged release dependencies reported high/critical advisories; disabling
+the automatic gate does not resolve those findings or constitute security
+approval. Retain the reports for dependency review before production promotion.
+
+Run HTTP integration coverage for both decision and proxy modes, including
+trailing slashes, path traversal normalization, authentication and rejection. An
+image build must pass its regression gate before producing a final image.
+
+For an upstream update, create a new release branch and rebase the isolated
+commits. Review `git range-diff` against the previous base and series, rerun the
+tests, and drop fixes that upstream now provides. Publish immutable signed
+`v<upstream-version>-custom.<revision>` source tags; candidates use an `-rc.N`
+suffix. Never move a published source or image tag.
