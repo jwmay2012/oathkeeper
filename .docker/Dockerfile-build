@@ -1,5 +1,5 @@
 # Workaround for https://github.com/GoogleContainerTools/distroless/issues/1342
-FROM golang:1.26-trixie AS builder
+FROM golang:1.26.10-trixie@sha256:909771fef53e3dcb0950255f0c9a8b4728c3b841e61509c7b29b098de7ee02d4 AS builder
 
 WORKDIR /go/src/github.com/ory/oathkeeper
 
@@ -20,7 +20,10 @@ RUN go build -o /usr/bin/oathkeeper .
 
 #########################
 
-FROM gcr.io/distroless/static-debian12:nonroot AS runner
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS runner
+
+# Replace distroless's stale roots as well as using Go's SPKI blocklist.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 COPY --from=builder --chown=nonroot:nonroot /usr/bin/oathkeeper /usr/bin/oathkeeper
 
