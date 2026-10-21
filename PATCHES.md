@@ -6,6 +6,10 @@ because distroless still carries the affected roots. This complements Go's
 eMudhra intermediate blocklist without changing application code or dependencies.
 Drop this isolated commit when upstream supplies equivalent trust handling.
 
+The Docker context excludes `.git/`. Release builds stamp version and commit
+explicitly, so they do not depend on a usable Git checkout inside the image
+builder. Copying Git metadata caused automatic VCS stamping to fail in Kaniko.
+
 This fork follows released upstream Oathkeeper tags. The current base is
 `v26.2.0` (`c84dbe07ecbf6f10154f04ec49b137a115155289`). Historical branches and
 published tags are retained unchanged.
